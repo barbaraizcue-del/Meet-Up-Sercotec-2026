@@ -268,10 +268,23 @@
             btnAgendar.textContent = '⏳ Agendando...';
 
             try {
+                // ===== VERIFICAR QUE EL CDN NO TENGA OTRA REUNIÓN EN ESA FECHA Y HORA =====
+                const reunionesRef = collection(db, 'reuniones');
+                const qCDN = query(reunionesRef, where('cdn', '==', cdn), where('fecha', '==', fecha), where('hora', '==', hora));
+                const conflictoCDN = await getDocs(qCDN);
+                if (!conflictoCDN.empty) {
+                    const reunionExistente = conflictoCDN.docs[0].data();
+                    mostrarMensaje('cdn-mensaje', `❌ Ya tienes una reunión agendada el ${fecha} a las ${hora} con ${reunionExistente.empresa}. No puedes agendar dos reuniones al mismo tiempo.`, false);
+                    btnAgendar.disabled = false;
+                    btnAgendar.textContent = '✅ CONFIRMAR REUNIÓN';
+                    return;
+                }
+
+                // ===== VERIFICAR QUE EL SLOT DE LA EMPRESA NO ESTÉ TOMADO =====
                 const slotKey = `${empresa}_${fecha}_${hora}`.replace(/[^a-zA-Z0-9_]/g, '_');
                 const slotSnap = await getDoc(doc(db, 'horarios_tomados', slotKey));
                 if (slotSnap.exists()) {
-                    mostrarMensaje('cdn-mensaje', '❌ Este horario ya fue tomado. Selecciona otro.', false);
+                    mostrarMensaje('cdn-mensaje', '❌ Este horario ya fue tomado por otro CDN. Selecciona otro.', false);
                     btnAgendar.disabled = false;
                     btnAgendar.textContent = '✅ CONFIRMAR REUNIÓN';
                     return;
