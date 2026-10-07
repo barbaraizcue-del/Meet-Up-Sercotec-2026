@@ -55,6 +55,14 @@
 
             <div id="empresa-mensaje" class="mensaje"></div>
         </div>
+
+        <!-- Mi Agenda -->
+        <div id="mi-agenda-card" class="card" style="display:none; margin-top:20px;">
+            <h2>📆 Mi Agenda</h2>
+            <p style="font-size:13px;color:#777;margin-bottom:15px;">Reuniones confirmadas y horarios disponibles.</p>
+            <div id="mi-agenda-contenido"></div>
+        </div>
+
         <div style="text-align:center; margin-top:10px;">
             <a href="index.html" style="color:#999; font-size:13px; text-decoration:none;">← Volver al inicio</a>
         </div>
@@ -81,7 +89,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const app = initializeApp({
             apiKey: "AIzaSyBjWa9R8vFPb9uWZ8sf7_ZIOkq5HOidXOQ",
@@ -129,7 +137,11 @@
 
         window.onEmpresaChange = async function() {
             const empresa = document.getElementById('empresa-select').value;
-            if (!empresa) { document.getElementById('empresa-fechas-container').style.display = 'none'; return; }
+            if (!empresa) {
+                document.getElementById('empresa-fechas-container').style.display = 'none';
+                document.getElementById('mi-agenda-card').style.display = 'none';
+                return;
+            }
             const snap = await getDoc(doc(db, 'disponibilidades', empresa));
             const prev = document.getElementById('disponibilidad-previa');
             const emailInp = document.getElementById('empresa-email');
@@ -147,7 +159,62 @@
             }
             renderFechas(snap.exists() ? snap.data().horarios || [] : []);
             document.getElementById('empresa-fechas-container').style.display = 'block';
+            await renderMiAgenda(empresa, snap.exists() ? snap.data().horarios || [] : []);
         };
+
+        async function renderMiAgenda(empresa, horarios) {
+            const card = document.getElementById('mi-agenda-card');
+            const contenido = document.getElementById('mi-agenda-contenido');
+            if (!horarios.length) { card.style.display = 'none'; return; }
+            card.style.display = 'block';
+            contenido.innerHTML = '<div style="color:#999;font-size:13px;">Cargando reuniones...</div>';
+
+            // Obtener reuniones de esta empresa
+            const snapR = await getDocs(query(collection(db, 'reuniones'), where('empresa', '==', empresa)));
+            const reunionesMap = {};
+            snapR.forEach(d => {
+                const r = d.data();
+                reunionesMap[`${r.fecha}||${r.hora}`] = r.cdn;
+            });
+
+            // Agrupar horarios por fecha
+            const porFecha = {};
+            horarios.forEach(h => {
+                if (!porFecha[h.fecha]) porFecha[h.fecha] = [];
+                porFecha[h.fecha].push(h.hora);
+            });
+            const fechas = Object.keys(porFecha).sort();
+            Object.keys(porFecha).forEach(f => porFecha[f].sort());
+
+            let html = '';
+            let totalAgendados = 0;
+            fechas.forEach(fecha => {
+                const d = new Date(fecha + 'T12:00:00');
+                const label = d.toLocaleDateString('es-CL', {weekday:'long', day:'numeric', month:'long'});
+                const chips = porFecha[fecha].map(hora => {
+                    const cdn = reunionesMap[`${fecha}||${hora}`];
+                    if (cdn) {
+                        totalAgendados++;
+                        return `<div style="display:inline-flex;align-items:center;gap:6px;background:#fdecea;border:1px solid #e57373;border-radius:6px;padding:4px 10px;font-size:12px;margin:3px;">
+                            🔴 <strong>${hora}</strong> <span style="color:#c0392b;">— ${cdn}</span>
+                        </div>`;
+                    }
+                    return `<span style="display:inline-block;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:4px 10px;font-size:12px;margin:3px;color:#2e7d32;">🟢 ${hora}</span>`;
+                }).join('');
+                html += `<div style="margin-bottom:14px;">
+                    <div style="font-weight:600;font-size:13px;color:#1a5276;margin-bottom:6px;">📅 ${label}</div>
+                    <div>${chips}</div>
+                </div>`;
+            });
+
+            const libres = horarios.length - totalAgendados;
+            contenido.innerHTML = `
+                <div style="display:flex;gap:20px;margin-bottom:16px;flex-wrap:wrap;">
+                    <span style="font-size:13px;background:#e8f5e9;padding:4px 12px;border-radius:20px;color:#2e7d32;">🟢 ${libres} disponibles</span>
+                    <span style="font-size:13px;background:#fdecea;padding:4px 12px;border-radius:20px;color:#c0392b;">🔴 ${totalAgendados} agendados</span>
+                </div>
+                ${html}`;
+        }
 
         function renderFechas(sel = []) {
             const cont = document.getElementById('empresa-fechas');

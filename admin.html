@@ -371,6 +371,13 @@
                     return;
                 }
 
+                // Mapa de slots ya agendados: "empresa_fecha_hora" -> cdn
+                const slotsTomados = {};
+                todasReuniones.forEach(r => {
+                    const k = `${r.empresa}||${r.fecha}||${r.hora}`;
+                    slotsTomados[k] = r.cdn;
+                });
+
                 todasDisponibilidades.forEach((datos, idx) => {
                     const fechasUnicas = [...new Set(datos.horarios.map(h => h.fecha))].sort();
                     // Agrupar horarios por fecha
@@ -381,9 +388,18 @@
                     });
                     Object.keys(porFecha).forEach(f => porFecha[f].sort());
 
+                    const tomados = datos.horarios.filter(h => slotsTomados[`${datos.empresa}||${h.fecha}||${h.hora}`]).length;
+                    const libres = datos.horarios.length - tomados;
+
                     const detalleId = `detalle-emp-${idx}`;
                     const filasFechas = fechasUnicas.map(fecha => {
-                        const horas = porFecha[fecha].map(h => `<span style="display:inline-block;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;">${h}</span>`).join(' ');
+                        const horas = porFecha[fecha].map(h => {
+                            const cdn = slotsTomados[`${datos.empresa}||${fecha}||${h}`];
+                            if (cdn) {
+                                return `<span title="Agendado con: ${cdn}" style="display:inline-block;background:#fdecea;border:1px solid #e57373;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;text-decoration:line-through;color:#c0392b;">🔴 ${h}</span>`;
+                            }
+                            return `<span style="display:inline-block;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;">${h}</span>`;
+                        }).join(' ');
                         return `<div style="margin-bottom:6px;"><span style="font-weight:600;font-size:12px;color:#1a5276;">📅 ${fecha}</span><div style="margin-top:3px;">${horas}</div></div>`;
                     }).join('');
 
@@ -399,6 +415,7 @@
                         </div>
                         <div style="font-size:12px; color:#777; margin-bottom:8px;">📧 ${datos.email}</div>
                         <div style="font-size:12px; color:#999; margin-bottom:4px;">📅 ${fechasUnicas.length} días — ${fechasUnicas.join(', ')}</div>
+                        ${tomados > 0 ? `<div style="font-size:12px;margin-top:4px;"><span style="color:#27ae60;">✅ ${libres} libres</span> · <span style="color:#c0392b;">🔴 ${tomados} agendados</span></div>` : ''}
                         <div id="${detalleId}" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
                             ${filasFechas}
                         </div>
