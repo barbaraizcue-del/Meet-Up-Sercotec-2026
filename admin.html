@@ -371,17 +371,37 @@
                     return;
                 }
 
-                todasDisponibilidades.forEach(datos => {
-                    const fechasUnicas = [...new Set(datos.horarios.map(h => h.fecha))];
+                todasDisponibilidades.forEach((datos, idx) => {
+                    const fechasUnicas = [...new Set(datos.horarios.map(h => h.fecha))].sort();
+                    // Agrupar horarios por fecha
+                    const porFecha = {};
+                    datos.horarios.forEach(h => {
+                        if (!porFecha[h.fecha]) porFecha[h.fecha] = [];
+                        porFecha[h.fecha].push(h.hora);
+                    });
+                    Object.keys(porFecha).forEach(f => porFecha[f].sort());
+
+                    const detalleId = `detalle-emp-${idx}`;
+                    const filasFechas = fechasUnicas.map(fecha => {
+                        const horas = porFecha[fecha].map(h => `<span style="display:inline-block;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;">${h}</span>`).join(' ');
+                        return `<div style="margin-bottom:6px;"><span style="font-weight:600;font-size:12px;color:#1a5276;">📅 ${fecha}</span><div style="margin-top:3px;">${horas}</div></div>`;
+                    }).join('');
+
                     const div = document.createElement('div');
                     div.style.cssText = 'background:#fafafa; border:1px solid #eee; border-radius:10px; padding:15px; margin-bottom:12px; border-left:4px solid #c0392b;';
                     div.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; cursor:pointer;" onclick="document.getElementById('${detalleId}').style.display = document.getElementById('${detalleId}').style.display === 'none' ? 'block' : 'none'; this.querySelector('.toggle-icon').textContent = document.getElementById('${detalleId}').style.display === 'none' ? '▶' : '▼';">
                             <strong>${datos.empresa}</strong>
-                            <span class="badge badge-green">${datos.horarios.length} horarios</span>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span class="badge badge-green">${datos.horarios.length} horarios</span>
+                                <span class="toggle-icon" style="color:#c0392b;font-size:14px;">▶</span>
+                            </div>
                         </div>
                         <div style="font-size:12px; color:#777; margin-bottom:8px;">📧 ${datos.email}</div>
-                        <div style="font-size:12px; color:#999;">📅 Fechas: ${fechasUnicas.length} días — ${fechasUnicas.join(', ')}</div>
+                        <div style="font-size:12px; color:#999; margin-bottom:4px;">📅 ${fechasUnicas.length} días — ${fechasUnicas.join(', ')}</div>
+                        <div id="${detalleId}" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
+                            ${filasFechas}
+                        </div>
                     `;
                     contenedor.appendChild(div);
                 });
